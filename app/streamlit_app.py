@@ -170,8 +170,8 @@ gemini_active = False
 if gemini_installed and api_key:
     try:
         genai.configure(api_key=api_key)
-        # Using the recommended model gemini-1.5-flash
-        llm_model = genai.GenerativeModel('gemini-1.5-flash')
+        # Using the recommended model gemini-3.5-flash
+        llm_model = genai.GenerativeModel('gemini-3.5-flash')
         gemini_active = True
     except Exception as ex:
         gemini_active = False
