@@ -355,12 +355,26 @@ if artifacts_loaded:
         """, unsafe_allow_html=True)
         
         if churn_risk == "HIGH":
-            st.markdown("""
-            * **Contract Incentives**: Pitch a 1-year or 2-year contract upgrade to lock in stability. Month-to-month contracts have a **42.7%** baseline churn rate.
-            * **Billing Relief**: This customer has high billing relative to tenure. Provide a bundle deal or a temporary **$10 monthly loyalty credit** for 6 months.
-            * **Billing Automation**: Promote moving away from Electronic Check (associated with **45.3%** churn) to automatic bank transfer / credit card with a $10 invoice credit.
-            * **Quality Outreach**: If on a Fiber Optic service (often associated with high-charge churn), schedule a technical health check-in call to ensure speed and line quality satisfaction.
-            """)
+            recs = []
+            if contract == "Month-to-month":
+                recs.append("**Contract Incentives**: Pitch a 1-year or 2-year contract upgrade to lock in stability. Month-to-month contracts have a **42.7%** baseline churn rate in our historical data.")
+            if monthly_charges > 70.0:
+                recs.append(f"**Billing Relief**: This customer has high monthly billing (**${monthly_charges}**). Provide a custom service bundle discount or a temporary **$10 monthly loyalty credit** for 6 months.")
+            if payment_method == "Electronic check":
+                recs.append("**Billing Automation**: Promote moving away from Electronic Check (associated with a high **45.3%** churn rate) to automatic bank transfer / credit card with a one-time $10 account credit.")
+            if internet_service == "Fiber optic":
+                recs.append("**Quality Technical Outreach**: Schedule a technical health check-in call to ensure satisfaction, as Fiber Optic subscribers show high cost/quality sensitivity.")
+            if internet_service != "No" and online_security == "No":
+                recs.append("**Security Package Trial**: Offer a 30-day trial of our Online Security add-on to increase service stickiness and peace of mind.")
+            if internet_service != "No" and tech_support == "No":
+                recs.append("**Premium Support Trial**: Offer a 3-month free trial of our premium Tech Support service to resolve setup or service quality issues.")
+                
+            # Fallback if no specific trigger fits but overall risk is high
+            if not recs:
+                recs.append("**Proactive Care Call**: Schedule a customer care call to discuss their overall experience and check for service satisfaction.")
+                
+            for rec in recs:
+                st.markdown(f"- {rec}")
         else:
             st.markdown("""
             * **Account Stability**: The customer holds standard low-risk indicators. No loyalty pricing adjustment is required.
