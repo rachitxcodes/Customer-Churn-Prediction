@@ -155,9 +155,51 @@ def load_shap_explainer(_model):
     explainer = shap.Explainer(_model, background_df)
     return explainer
 
+# Human-friendly feature labels mapping for SHAP visualizations
+PRETTY_LABELS = {
+    'gender': 'Gender (Male)',
+    'SeniorCitizen': 'Is Senior Citizen',
+    'Partner': 'Has Partner',
+    'Dependents': 'Has Dependents',
+    'tenure': 'Tenure (Months)',
+    'PhoneService': 'Has Phone Service',
+    'PaperlessBilling': 'Paperless Billing',
+    'MonthlyCharges': 'Monthly Bill ($)',
+    'TotalCharges': 'Total Charges ($)',
+    'charges_per_month': 'Calculated Monthly Average ($)',
+    'MultipleLines_No phone service': 'No Phone Service',
+    'MultipleLines_Yes': 'Multiple Phone Lines',
+    'InternetService_Fiber optic': 'Fiber Optic Internet',
+    'InternetService_No': 'No Internet Service',
+    'OnlineSecurity_No internet service': 'No Internet Service (Security)',
+    'OnlineSecurity_Yes': 'Online Security Active',
+    'OnlineBackup_No internet service': 'No Internet Service (Backup)',
+    'OnlineBackup_Yes': 'Online Backup Active',
+    'DeviceProtection_No internet service': 'No Internet Service (Protection)',
+    'DeviceProtection_Yes': 'Device Protection Active',
+    'TechSupport_No internet service': 'No Internet Service (Tech Support)',
+    'TechSupport_Yes': 'Tech Support Active',
+    'StreamingTV_No internet service': 'No Internet Service (TV)',
+    'StreamingTV_Yes': 'Streaming TV Active',
+    'StreamingMovies_No internet service': 'No Internet Service (Movies)',
+    'StreamingMovies_Yes': 'Streaming Movies Active',
+    'Contract_One year': 'Contract: One Year',
+    'Contract_Two year': 'Contract: Two Year',
+    'PaymentMethod_Credit card (automatic)': 'Payment: Auto Credit Card',
+    'PaymentMethod_Electronic check': 'Payment: Electronic Check',
+    'PaymentMethod_Mailed check': 'Payment: Mailed Check',
+    'tenure_group_13-24': 'Tenure: 1-2 Years',
+    'tenure_group_25-48': 'Tenure: 2-4 Years',
+    'tenure_group_49-60': 'Tenure: 4-5 Years',
+    'tenure_group_61-72': 'Tenure: 5+ Years'
+}
+
 try:
     model, scaler, feature_columns = load_artifacts()
-    explainer = load_shap_explainer(model)
+    # Load background dataset and rename columns for SHAP plotting
+    background_df = pd.read_csv('data/processed/X_train_smoteenn.csv').head(100)
+    background_df.rename(columns=PRETTY_LABELS, inplace=True)
+    explainer = shap.Explainer(model, background_df)
     artifacts_loaded = True
 except Exception as e:
     st.error(f"Error loading model artifacts or SHAP background data: {e}. Please ensure modeling ran successfully first.")
@@ -404,17 +446,17 @@ if artifacts_loaded:
 
         # Define clean, interactive tabs for the dashboard
         tab_diag, tab_shap, tab_playbook, tab_model = st.tabs([
-            "📊 Risk Diagnostics", 
-            "🔍 Risk Drivers (SHAP)", 
-            "💡 Retention Playbook", 
-            "🔬 Model Specs"
+            "📊 Risk Assessment", 
+            "🔍 Key Decision Factors", 
+            "💡 Proactive Retention Plan", 
+            "⚙️ Technical Details"
         ])
         
         with tab_diag:
             # HTML styled metric card
             st.markdown(f"""
             <div class="dashboard-card" style="margin-top: 15px;">
-                <div class="card-title">Analysis Output</div>
+                <div class="card-title">📋 Prediction Result</div>
                 <div class="gauge-wrapper">
                     <div style="font-size: 15px; font-weight: 500; color: #888;">Churn Probability</div>
                     <div class="gauge-value" style="color: {gauge_color};">{prob * 100:.1f}%</div>
@@ -429,7 +471,7 @@ if artifacts_loaded:
             # AI Advisor Insights Card
             st.markdown(f"""
             <div class="dashboard-card">
-                <div class="card-title">🤖 AI Advisor Narrative</div>
+                <div class="card-title">🤖 AI Advisor Summary</div>
             </div>
             """, unsafe_allow_html=True)
             
@@ -443,20 +485,22 @@ if artifacts_loaded:
         with tab_shap:
             st.markdown(f"""
             <div class="dashboard-card" style="margin-top: 15px;">
-                <div class="card-title">Explainable AI (SHAP) Prediction Drivers</div>
+                <div class="card-title">🔍 What Influenced the Prediction?</div>
                 <p style="font-size: 13.5px; color: #888; margin-bottom: 15px;">
-                    Waterfall plot illustrating features shifting customer probability towards churn (red) or retention (blue):
+                    This chart shows how different customer characteristics shifted their probability score (red increases risk, blue decreases risk):
                 </p>
             </div>
             """, unsafe_allow_html=True)
             
             try:
-                shap_values = explainer(input_df)
+                # Create a copy and rename columns for pretty presentation on the plot
+                input_df_pretty = input_df.rename(columns=PRETTY_LABELS)
+                shap_values = explainer(input_df_pretty)
                 
                 # Format figures to be transparent & modern
                 fig, ax = plt.subplots(figsize=(9, 4.5))
                 shap.plots.waterfall(shap_values[0], max_display=8, show=False)
-                plt.title("Attribution Drivers (SHAP log-odds)", fontsize=11, fontweight='bold', pad=12)
+                plt.title("Impact of Customer Characteristics on Risk Score", fontsize=11, fontweight='bold', pad=12)
                 plt.gcf().patch.set_facecolor('none')  # Transparent background
                 ax.patch.set_facecolor('none')
                 plt.tight_layout()
@@ -469,7 +513,7 @@ if artifacts_loaded:
             # Loyalty Action plan card
             st.markdown(f"""
             <div class="dashboard-card" style="margin-top: 15px;">
-                <div class="card-title">💡 Proactive Retention Strategy</div>
+                <div class="card-title">💡 Recommended Action Plan</div>
             </div>
             """, unsafe_allow_html=True)
             
@@ -504,9 +548,9 @@ if artifacts_loaded:
             if gemini_active:
                 st.markdown(f"""
                 <div class="dashboard-card" style="margin-top: 15px;">
-                    <div class="card-title">✍️ AI Retention Pitch Draft</div>
+                    <div class="card-title">✍️ AI-Generated Loyalty Pitch</div>
                     <p style="font-size: 13.5px; color: #888; margin-bottom: 5px;">
-                        Generate a custom-tailored customer save email based on this diagnosis:
+                        Draft a personalized customer save email based on this diagnosis:
                     </p>
                 </div>
                 """, unsafe_allow_html=True)
