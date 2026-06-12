@@ -10,4 +10,4 @@ imbalanced-learn
 optuna
 streamlit
 joblib
-jupyter
+ipykernel
