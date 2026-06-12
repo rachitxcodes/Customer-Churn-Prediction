@@ -11,3 +11,4 @@ optuna
 streamlit
 joblib
 ipykernel
+shap

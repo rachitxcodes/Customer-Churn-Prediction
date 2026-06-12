@@ -4,6 +4,8 @@ import joblib
 import pandas as pd
 import numpy as np
 import streamlit as st
+import matplotlib.pyplot as plt
+import shap
 
 # 1. Page Configuration & Custom Styling
 st.set_page_config(
@@ -63,10 +65,21 @@ st.markdown("""
         font-size: 16px;
         color: #495057;
     }
+    
+    /* Section dividers and labels */
+    .section-title {
+        font-size: 20px;
+        font-weight: 600;
+        color: #1d6f66;
+        margin-top: 15px;
+        margin-bottom: 10px;
+        border-bottom: 2px solid #e9ecef;
+        padding-bottom: 5px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# 2. Cache Model and Preprocessors
+# 2. Cache Model, Preprocessors, and SHAP Explainer
 @st.cache_resource
 def load_artifacts():
     model = joblib.load('models/best_model.pkl')
@@ -75,19 +88,28 @@ def load_artifacts():
         feature_columns = json.load(f)
     return model, scaler, feature_columns
 
+@st.cache_resource
+def load_shap_explainer(_model):
+    # Load background dataset (100 samples is ideal for speed and stability)
+    background_df = pd.read_csv('data/processed/X_train_smoteenn.csv').head(100)
+    # Instantiate SHAP explainer
+    explainer = shap.Explainer(_model, background_df)
+    return explainer
+
 try:
     model, scaler, feature_columns = load_artifacts()
+    explainer = load_shap_explainer(model)
     artifacts_loaded = True
 except Exception as e:
-    st.error(f"Error loading model artifacts: {e}. Please ensure you ran Stage 3 modeling first.")
+    st.error(f"Error loading model artifacts or SHAP background data: {e}. Please ensure modeling ran successfully first.")
     artifacts_loaded = False
 
-# 3. Application Layout
+# 3. Application Title Card
 st.markdown("""
 <div class="title-card">
     <h1 style='margin:0; font-weight:800;'>📞 Telecom Customer Churn Predictor</h1>
     <p style='margin:5px 0 0 0; opacity:0.9; font-size:16px;'>
-        Leverage machine learning to predict customer cancellation risk and take proactive retention actions.
+        Leverage machine learning and Explainable AI (SHAP) to diagnose customer retention risks in real-time.
     </p>
 </div>
 """, unsafe_allow_html=True)
@@ -134,20 +156,32 @@ if artifacts_loaded:
     contract = st.sidebar.selectbox("Contract Type", ["Month-to-month", "One year", "Two year"])
     
     # Create main layout
-    col1, col2 = st.columns([3, 2])
+    col1, col2 = st.columns([1, 1])
     
     with col1:
-        st.markdown("### Customer Information Summary")
+        st.markdown("<div class='section-title'>Customer Profile Summary</div>", unsafe_allow_html=True)
         
         info_df = pd.DataFrame({
-            "Attribute": ["Gender", "Senior", "Partner", "Dependents", "Tenure", "Contract", "Internet Service", "Monthly Charges"],
-            "Value": [gender, senior_citizen, partner, dependents, f"{tenure} months", contract, internet_service, f"${monthly_charges}"]
+            "Attribute": ["Gender", "Senior Citizen", "Partner", "Dependents", "Tenure", "Contract Type", "Internet Service", "Monthly Charges", "Total Charges"],
+            "Value": [gender, senior_citizen, partner, dependents, f"{tenure} months", contract, internet_service, f"${monthly_charges}", f"${total_charges}"]
         })
         st.table(info_df)
         
+        # Display Model Performance Metrics in a collapsed expander for transparency
+        with st.expander("🔬 Model Performance Metadata"):
+            st.markdown("""
+            **Tuned Classifier**: Logistic Regression (regularized)  
+            **Balancing Method**: SMOTE + ENN (Edited Nearest Neighbors)  
+            
+            * **Sensitivity/Recall (Class 1)**: **87.70%** (Catches ~88% of churners)
+            * **ROC-AUC**: **83.26%**
+            * **Overall Test Accuracy**: **70.19%**
+            * **F1-Score**: **60.97%**
+            """)
+        
     with col2:
-        st.markdown("### Prediction Panel")
-        predict_btn = st.button("📊 Calculate Churn Probability", use_container_width=True)
+        st.markdown("<div class='section-title'>Diagnostic & Prediction Panel</div>", unsafe_allow_html=True)
+        predict_btn = st.button("📊 Run Churn Diagnosis", use_container_width=True)
         
         if predict_btn:
             # 4. Preprocess input to match training format
@@ -265,17 +299,7 @@ if artifacts_loaded:
                     <div class="risk-text">This customer has a <b>{prob * 100:.1f}%</b> probability of canceling subscription.</div>
                 </div>
                 """, unsafe_allow_html=True)
-                
-                # Show custom visual progress indicator
                 st.progress(float(prob))
-                
-                st.markdown("### 💡 Recommended Loyalty Strategies")
-                st.markdown("""
-                * **Offer Contract Upgrades**: The customer is likely on a Month-to-month plan. Offer a discount if they commit to a 1 or 2-year contract.
-                * **Price Incentive**: The customer has high monthly charges. Offer a service bundle or loyalty discount (e.g., $10 off monthly invoice for 6 months).
-                * **Shift to Auto-Pay**: If they pay via Electronic Check, incentivize moving to automatic Credit Card/Bank payments with a one-time $10 credit.
-                * **Service Check-in**: If they are using Fiber Optic, schedule a customer care outreach to resolve potential tech/speed performance issues.
-                """)
             else:
                 st.markdown(f"""
                 <div class="metric-container low-risk">
@@ -283,23 +307,38 @@ if artifacts_loaded:
                     <div class="risk-text">This customer has a <b>{prob * 100:.1f}%</b> probability of canceling subscription.</div>
                 </div>
                 """, unsafe_allow_html=True)
-                
                 st.progress(float(prob))
                 
-                st.markdown("### 💡 Relationship Maintenance")
+            # 5. SHAP Explanations UI section
+            st.markdown("<div class='section-title'>🔍 Explainable AI (XAI) Attribution</div>", unsafe_allow_html=True)
+            st.write("This plot shows the major features pushing the customer towards (red) or away from (blue) churn risk:")
+            
+            try:
+                # Calculate SHAP values for this instance
+                shap_values = explainer(input_df)
+                
+                # Plot waterfall chart
+                fig, ax = plt.subplots(figsize=(10, 5))
+                # Set a tight bounding layout for neat presentation
+                shap.plots.waterfall(shap_values[0], max_display=8, show=False)
+                plt.title("Attribution of Prediction Drivers (SHAP log-odds)", fontsize=12, fontweight='bold', pad=10)
+                plt.tight_layout()
+                st.pyplot(fig)
+                plt.close()
+            except Exception as ex:
+                st.warning(f"Could not calculate SHAP plot: {ex}")
+                
+            # 6. Structured loyalty recommendations based on prediction
+            st.markdown("<div class='section-title'>💡 Recommended Loyalty Action Plan</div>", unsafe_allow_html=True)
+            if churn_risk == "HIGH":
+                st.markdown("""
+                * **Offer Contract Upgrades**: The customer is likely on a Month-to-month plan. Offer a discount if they commit to a 1 or 2-year contract.
+                * **Price Incentive**: The customer has high monthly charges. Offer a service bundle or loyalty discount (e.g., $10 off monthly invoice for 6 months).
+                * **Shift to Auto-Pay**: If they pay via Electronic Check, incentivize moving to automatic Credit Card/Bank payments with a one-time $10 credit.
+                * **Service Check-in**: If they are using Fiber Optic, schedule a customer care outreach to resolve potential tech/speed performance issues.
+                """)
+            else:
                 st.markdown("""
                 * **Customer is Stable**: No immediate financial retention action required.
                 * **Upsell Opportunities**: Since churn risk is low, they might be receptive to add-on security packages or premium streaming subscriptions.
                 """)
-
-    # Display Model Performance Metrics in a collapsed expander for transparency
-    with st.expander("🔬 Model Metadata & Metrics"):
-        st.markdown("""
-        **Tuned Classifier**: Logistic Regression (regularized)  
-        **Balancing Method**: SMOTE + ENN (Edited Nearest Neighbors)  
-        
-        * **Sensitivity/Recall (Class 1)**: **87.7%** (Focus of project - minimizes missed churners)
-        * **ROC-AUC**: **83.3%**
-        * **Overall Test Accuracy**: **70.2%**
-        * **F1-Score**: **61.0%**
-        """)
