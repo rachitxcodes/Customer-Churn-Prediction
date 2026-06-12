@@ -7,6 +7,28 @@ import streamlit as st
 import matplotlib.pyplot as plt
 import shap
 
+# Load .env manually to avoid extra dependencies
+def load_env(filepath='.env'):
+    if os.path.exists(filepath):
+        with open(filepath, 'r') as f:
+            for line in f:
+                if line.strip() and not line.startswith('#'):
+                    try:
+                        key, val = line.strip().split('=', 1)
+                        os.environ[key.strip()] = val.strip().strip('"').strip("'")
+                    except ValueError:
+                        pass
+
+load_env()
+
+# Try loading google-generativeai
+try:
+    import google.generativeai as genai
+    gemini_installed = True
+except ImportError:
+    gemini_installed = False
+
+
 # 1. Page Configuration
 st.set_page_config(
     page_title="Telecom Customer Churn Predictor",
@@ -138,8 +160,64 @@ try:
     explainer = load_shap_explainer(model)
     artifacts_loaded = True
 except Exception as e:
-    st.error(f"Error loading model artifacts: {e}. Please ensure you ran Stage 3 modeling first.")
+    st.error(f"Error loading model artifacts or SHAP background data: {e}. Please ensure modeling ran successfully first.")
     artifacts_loaded = False
+
+# Configure Gemini AI Advisor
+api_key = os.environ.get("GEMINI_API_KEY")
+gemini_active = False
+
+if gemini_installed and api_key:
+    try:
+        genai.configure(api_key=api_key)
+        # Using the recommended model gemini-1.5-flash
+        llm_model = genai.GenerativeModel('gemini-1.5-flash')
+        gemini_active = True
+    except Exception as ex:
+        gemini_active = False
+
+def get_ai_explanation(profile_summary, prob_val, risk_val):
+    prompt = f"""
+    You are an expert AI Customer Retention Advisor at Apex Telecom.
+    
+    A customer has the following profile:
+    {profile_summary}
+    
+    Our predictive machine learning model has calculated that this customer has a {prob_val * 100:.1f}% probability of churn (canceling service), which is classified as {risk_val} Churn Risk.
+    
+    Please explain in 2-3 simple, friendly, and non-technical sentences:
+    1. Why this customer is likely to churn or stay.
+    2. What specific saving offer/tactic the account agent should pitch to retain them.
+    
+    Keep the tone professional and action-oriented. Do not mention ML technical terms like 'coefficients', 'log-odds', or 'SHAP'. Refer to the customer as 'the customer'.
+    """
+    try:
+        response = llm_model.generate_content(prompt)
+        return response.text
+    except Exception as e:
+        return f"Could not generate AI explanation: {e}"
+
+def get_ai_email(profile_summary, prob_val, risk_val):
+    prompt = f"""
+    You are a Customer Loyalty Specialist at Apex Telecom.
+    
+    Write a personalized, warm, and supportive email to a customer with the following profile:
+    {profile_summary}
+    
+    The customer is at {risk_val} Churn Risk (probability: {prob_val * 100:.1f}%). 
+    We want to retain them by addressing their key pain points:
+    - If they have a Month-to-month contract, offer a 1-year contract with a discount.
+    - If they pay via Electronic check, suggest Credit Card autopay with a one-time $10 credit.
+    - If they have high monthly charges, offer a $10 discount or a bundled service save-deal.
+    
+    Write the email from the 'Apex Telecom Customer Loyalty Team'. Use placeholders like '[Customer Name]' or use their profile details. Keep the tone friendly, helpful, and completely non-intrusive.
+    """
+    try:
+        response = llm_model.generate_content(prompt)
+        return response.text
+    except Exception as e:
+        return f"Could not generate email draft: {e}"
+
 
 # 3. Top Banner Title Card
 st.markdown("""
@@ -307,6 +385,23 @@ if artifacts_loaded:
         risk_class = "high" if churn_risk == "HIGH" else "low"
         risk_label = "⚠️ HIGH CHURN RISK" if churn_risk == "HIGH" else "✅ LOW CHURN RISK"
         
+        profile_summary = f"""
+- Tenure: {tenure} months
+- Contract Type: {contract}
+- Monthly Charges: ${monthly_charges}/month
+- Total Charges: ${total_charges}
+- Payment Method: {payment_method}
+- Internet Service Provider: {internet_service}
+- Online Security: {online_security}
+- Tech Support: {tech_support}
+- Gender: {gender}
+- Senior Citizen: {senior_citizen}
+- Has Partner: {partner}
+- Has Dependents: {dependents}
+- Phone Service: {phone_service}
+- Multiple Lines: {multiple_lines}
+        """
+
         # HTML styled metric card
         st.markdown(f"""
         <div class="dashboard-card">
@@ -322,6 +417,20 @@ if artifacts_loaded:
         </div>
         """, unsafe_allow_html=True)
         
+        # AI Advisor Insights Card
+        st.markdown(f"""
+        <div class="dashboard-card">
+            <div class="card-title">🤖 AI Advisor Narrative</div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        if gemini_active:
+            with st.spinner("AI is summarizing churn risk attribution..."):
+                explanation = get_ai_explanation(profile_summary, prob, churn_risk)
+                st.write(explanation)
+        else:
+            st.info("🤖 **AI Advisor is offline.** Add `GEMINI_API_KEY` to your `.env` file to unlock real-time natural language explanation narratives.")
+            
         # SHAP attribution card
         st.markdown(f"""
         <div class="dashboard-card">
@@ -380,6 +489,21 @@ if artifacts_loaded:
             * **Account Stability**: The customer holds standard low-risk indicators. No loyalty pricing adjustment is required.
             * **Premium Upselling**: Leverage their loyalty indicators to introduce value-added services (e.g., Device Protection packages, premium cloud backups, or entertainment add-ons).
             """)
+            
+        # AI Email Draft Card
+        if gemini_active:
+            st.markdown(f"""
+            <div class="dashboard-card">
+                <div class="card-title">✍️ AI Retention Pitch Draft</div>
+                <p style="font-size: 13.5px; color: #888; margin-bottom: 5px;">
+                    Generate a custom-tailored customer save email based on this diagnosis:
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
+            if st.button("✍️ Generate Email Pitch", use_container_width=True):
+                with st.spinner("AI is drafting email..."):
+                    email_draft = get_ai_email(profile_summary, prob, churn_risk)
+                    st.text_area("Copy/Paste Email Pitch", value=email_draft, height=250)
             
         with st.expander("🔬 Model Information"):
             st.markdown("""
