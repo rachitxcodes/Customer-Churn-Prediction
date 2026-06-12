@@ -96,3 +96,19 @@ streamlit run app/streamlit_app.py
 Open your browser at `http://localhost:8501`.
 
 ---
+
+## 🔌 Explainable & Generative AI Features
+
+This project integrates advanced diagnostic tools to make predictions transparent, trustable, and actionable:
+1. **Explainable AI (SHAP)**: Waterfall plots showing exactly how each customer characteristic shifts the probability score (with database feature names mapped to human-readable terms).
+2. **AI Retention Advisor (Google Gemini)**: Translates the SHAP chart findings into plain English summaries ("AI Advisor Summary") and dynamically drafts personalized save-offer emails ("AI-Generated Loyalty Pitch") to increase customer retention.
+
+### Setting Up the Gemini API Key
+To unlock the LLM features:
+1. Create a `.env` file in the root directory of the project.
+2. Insert your Google AI Studio API key:
+   ```text
+   GEMINI_API_KEY="AIzaSyYourActualKeyHere..."
+   ```
+3. Save the file and restart the Streamlit application. The dashboard will automatically detect the environment variable and enable the AI Narrative and Email Generator cards!
+
