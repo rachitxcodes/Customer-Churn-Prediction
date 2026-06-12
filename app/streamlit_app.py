@@ -402,112 +402,132 @@ if artifacts_loaded:
 - Multiple Lines: {multiple_lines}
         """
 
-        # HTML styled metric card
-        st.markdown(f"""
-        <div class="dashboard-card">
-            <div class="card-title">Analysis Output</div>
-            <div class="gauge-wrapper">
-                <div style="font-size: 15px; font-weight: 500; color: #888;">Churn Probability</div>
-                <div class="gauge-value" style="color: {gauge_color};">{prob * 100:.1f}%</div>
-                <div class="gauge-bar-bg">
-                    <div class="gauge-bar-fill" style="width: {prob * 100}%; background-color: {gauge_color};"></div>
+        # Define clean, interactive tabs for the dashboard
+        tab_diag, tab_shap, tab_playbook, tab_model = st.tabs([
+            "📊 Risk Diagnostics", 
+            "🔍 Risk Drivers (SHAP)", 
+            "💡 Retention Playbook", 
+            "🔬 Model Specs"
+        ])
+        
+        with tab_diag:
+            # HTML styled metric card
+            st.markdown(f"""
+            <div class="dashboard-card" style="margin-top: 15px;">
+                <div class="card-title">Analysis Output</div>
+                <div class="gauge-wrapper">
+                    <div style="font-size: 15px; font-weight: 500; color: #888;">Churn Probability</div>
+                    <div class="gauge-value" style="color: {gauge_color};">{prob * 100:.1f}%</div>
+                    <div class="gauge-bar-bg">
+                        <div class="gauge-bar-fill" style="width: {prob * 100}%; background-color: {gauge_color};"></div>
+                    </div>
+                    <div class="risk-badge {risk_class}">{risk_label}</div>
                 </div>
-                <div class="risk-badge {risk_class}">{risk_label}</div>
             </div>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # AI Advisor Insights Card
-        st.markdown(f"""
-        <div class="dashboard-card">
-            <div class="card-title">🤖 AI Advisor Narrative</div>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        if gemini_active:
-            with st.spinner("AI is summarizing churn risk attribution..."):
-                explanation = get_ai_explanation(profile_summary, prob, churn_risk)
-                st.write(explanation)
-        else:
-            st.info("🤖 **AI Advisor is offline.** Add `GEMINI_API_KEY` to your `.env` file to unlock real-time natural language explanation narratives.")
+            """, unsafe_allow_html=True)
             
-        # SHAP attribution card
-        st.markdown(f"""
-        <div class="dashboard-card">
-            <div class="card-title">Explainable AI (SHAP) Prediction Drivers</div>
-            <p style="font-size: 13.5px; color: #888; margin-bottom: 15px;">
-                Waterfall plot illustrating features shifting customer probability towards churn (red) or retention (blue):
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        try:
-            shap_values = explainer(input_df)
-            
-            # Format figures to be transparent & modern
-            fig, ax = plt.subplots(figsize=(9, 4.5))
-            shap.plots.waterfall(shap_values[0], max_display=8, show=False)
-            plt.title("Attribution Drivers (SHAP log-odds)", fontsize=11, fontweight='bold', pad=12)
-            plt.gcf().patch.set_facecolor('none')  # Transparent background
-            ax.patch.set_facecolor('none')
-            plt.tight_layout()
-            st.pyplot(fig)
-            plt.close()
-        except Exception as ex:
-            st.error(f"Attribution error: {ex}")
-            
-        # Loyalty Action plan card
-        st.markdown(f"""
-        <div class="dashboard-card">
-            <div class="card-title">💡 Proactive Retention Strategy</div>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        if churn_risk == "HIGH":
-            recs = []
-            if contract == "Month-to-month":
-                recs.append("**Contract Incentives**: Pitch a 1-year or 2-year contract upgrade to lock in stability. Month-to-month contracts have a **42.7%** baseline churn rate in our historical data.")
-            if monthly_charges > 70.0:
-                recs.append(f"**Billing Relief**: This customer has high monthly billing (**${monthly_charges}**). Provide a custom service bundle discount or a temporary **$10 monthly loyalty credit** for 6 months.")
-            if payment_method == "Electronic check":
-                recs.append("**Billing Automation**: Promote moving away from Electronic Check (associated with a high **45.3%** churn rate) to automatic bank transfer / credit card with a one-time $10 account credit.")
-            if internet_service == "Fiber optic":
-                recs.append("**Quality Technical Outreach**: Schedule a technical health check-in call to ensure satisfaction, as Fiber Optic subscribers show high cost/quality sensitivity.")
-            if internet_service != "No" and online_security == "No":
-                recs.append("**Security Package Trial**: Offer a 30-day trial of our Online Security add-on to increase service stickiness and peace of mind.")
-            if internet_service != "No" and tech_support == "No":
-                recs.append("**Premium Support Trial**: Offer a 3-month free trial of our premium Tech Support service to resolve setup or service quality issues.")
-                
-            # Fallback if no specific trigger fits but overall risk is high
-            if not recs:
-                recs.append("**Proactive Care Call**: Schedule a customer care call to discuss their overall experience and check for service satisfaction.")
-                
-            for rec in recs:
-                st.markdown(f"- {rec}")
-        else:
-            st.markdown("""
-            * **Account Stability**: The customer holds standard low-risk indicators. No loyalty pricing adjustment is required.
-            * **Premium Upselling**: Leverage their loyalty indicators to introduce value-added services (e.g., Device Protection packages, premium cloud backups, or entertainment add-ons).
-            """)
-            
-        # AI Email Draft Card
-        if gemini_active:
+            # AI Advisor Insights Card
             st.markdown(f"""
             <div class="dashboard-card">
-                <div class="card-title">✍️ AI Retention Pitch Draft</div>
-                <p style="font-size: 13.5px; color: #888; margin-bottom: 5px;">
-                    Generate a custom-tailored customer save email based on this diagnosis:
+                <div class="card-title">🤖 AI Advisor Narrative</div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            if gemini_active:
+                with st.spinner("AI is summarizing churn risk attribution..."):
+                    explanation = get_ai_explanation(profile_summary, prob, churn_risk)
+                    st.write(explanation)
+            else:
+                st.info("🤖 **AI Advisor is offline.** Add `GEMINI_API_KEY` to your `.env` file to unlock real-time natural language explanation narratives.")
+                
+        with tab_shap:
+            st.markdown(f"""
+            <div class="dashboard-card" style="margin-top: 15px;">
+                <div class="card-title">Explainable AI (SHAP) Prediction Drivers</div>
+                <p style="font-size: 13.5px; color: #888; margin-bottom: 15px;">
+                    Waterfall plot illustrating features shifting customer probability towards churn (red) or retention (blue):
                 </p>
             </div>
             """, unsafe_allow_html=True)
-            if st.button("✍️ Generate Email Pitch", use_container_width=True):
-                with st.spinner("AI is drafting email..."):
-                    email_draft = get_ai_email(profile_summary, prob, churn_risk)
-                    st.text_area("Copy/Paste Email Pitch", value=email_draft, height=250)
             
-        with st.expander("🔬 Model Information"):
+            try:
+                shap_values = explainer(input_df)
+                
+                # Format figures to be transparent & modern
+                fig, ax = plt.subplots(figsize=(9, 4.5))
+                shap.plots.waterfall(shap_values[0], max_display=8, show=False)
+                plt.title("Attribution Drivers (SHAP log-odds)", fontsize=11, fontweight='bold', pad=12)
+                plt.gcf().patch.set_facecolor('none')  # Transparent background
+                ax.patch.set_facecolor('none')
+                plt.tight_layout()
+                st.pyplot(fig)
+                plt.close()
+            except Exception as ex:
+                st.error(f"Attribution error: {ex}")
+                
+        with tab_playbook:
+            # Loyalty Action plan card
+            st.markdown(f"""
+            <div class="dashboard-card" style="margin-top: 15px;">
+                <div class="card-title">💡 Proactive Retention Strategy</div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            if churn_risk == "HIGH":
+                recs = []
+                if contract == "Month-to-month":
+                    recs.append("**Contract Incentives**: Pitch a 1-year or 2-year contract upgrade to lock in stability. Month-to-month contracts have a **42.7%** baseline churn rate in our historical data.")
+                if monthly_charges > 70.0:
+                    recs.append(f"**Billing Relief**: This customer has high monthly billing (**${monthly_charges}**). Provide a custom service bundle discount or a temporary **$10 monthly loyalty credit** for 6 months.")
+                if payment_method == "Electronic check":
+                    recs.append("**Billing Automation**: Promote moving away from Electronic Check (associated with a high **45.3%** churn rate) to automatic bank transfer / credit card with a one-time $10 account credit.")
+                if internet_service == "Fiber optic":
+                    recs.append("**Quality Technical Outreach**: Schedule a technical health check-in call to ensure satisfaction, as Fiber Optic subscribers show high cost/quality sensitivity.")
+                if internet_service != "No" and online_security == "No":
+                    recs.append("**Security Package Trial**: Offer a 30-day trial of our Online Security add-on to increase service stickiness and peace of mind.")
+                if internet_service != "No" and tech_support == "No":
+                    recs.append("**Premium Support Trial**: Offer a 3-month free trial of our premium Tech Support service to resolve setup or service quality issues.")
+                    
+                # Fallback if no specific trigger fits but overall risk is high
+                if not recs:
+                    recs.append("**Proactive Care Call**: Schedule a customer care call to discuss their overall experience and check for service satisfaction.")
+                    
+                for rec in recs:
+                    st.markdown(f"- {rec}")
+            else:
+                st.markdown("""
+                * **Account Stability**: The customer holds standard low-risk indicators. No loyalty pricing adjustment is required.
+                * **Premium Upselling**: Leverage their loyalty indicators to introduce value-added services (e.g., Device Protection packages, premium cloud backups, or entertainment add-ons).
+                """)
+                
+            # AI Email Draft Card
+            if gemini_active:
+                st.markdown(f"""
+                <div class="dashboard-card" style="margin-top: 15px;">
+                    <div class="card-title">✍️ AI Retention Pitch Draft</div>
+                    <p style="font-size: 13.5px; color: #888; margin-bottom: 5px;">
+                        Generate a custom-tailored customer save email based on this diagnosis:
+                    </p>
+                </div>
+                """, unsafe_allow_html=True)
+                if st.button("✍️ Generate Email Pitch", use_container_width=True):
+                    with st.spinner("AI is drafting email..."):
+                        email_draft = get_ai_email(profile_summary, prob, churn_risk)
+                        st.text_area("Copy/Paste Email Pitch", value=email_draft, height=250)
+                        
+        with tab_model:
+            st.markdown(f"""
+            <div class="dashboard-card" style="margin-top: 15px;">
+                <div class="card-title">🔬 Machine Learning Pipeline Specs</div>
+            </div>
+            """, unsafe_allow_html=True)
             st.markdown("""
             * **Classifier**: Regularized Logistic Regression (C=0.628)
             * **Balancing Strategy**: SMOTE + ENN (Edited Nearest Neighbors)
-            * **Training Metrics**: Recall: **87.7%** (Class 1) | ROC-AUC: **83.3%** | Accuracy: **70.2%**
+            * **Training Metrics**: 
+              * Recall (Class 1 Churn): **87.70%** (primary optimization target)
+              * ROC-AUC: **83.26%**
+              * Test Accuracy: **70.19%**
+              * F1-Score: **60.97%**
+            * **Features**: 35 preprocessed, encoded, and scaled columns
             """)
