@@ -84,12 +84,20 @@ pip install -r requirements.txt
   ```bash
   python src/data_preprocessing.py
   ```
-- Run **Stage 3 (Modeling)** to train, tune, and save the classifier:
+- Run **Stage 3 (Modeling)** to train, tune, and save the classifier (and automatically log runs to MLflow):
   ```bash
   python src/train.py
   ```
 
-### 5. Run Streamlit Application Locally
+### 5. Experiment Tracking with MLflow
+All modeling experiments, metrics (Accuracy, Recall, ROC-AUC), parameter choices, diagnostic plots, and trained models are tracked locally in a SQLite database (`mlflow.db`) and artifact folders (`mlruns/`).
+- Launch the MLflow UI dashboard:
+  ```bash
+  mlflow ui --backend-store-uri sqlite:///mlflow.db --port 5000
+  ```
+- View it in your web browser at `http://localhost:5000`.
+
+### 6. Run Streamlit Application Locally
 ```bash
 streamlit run app/streamlit_app.py
 ```

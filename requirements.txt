@@ -13,3 +13,4 @@ joblib
 ipykernel
 shap
 google-generativeai
+mlflow
